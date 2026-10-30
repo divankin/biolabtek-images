@@ -1,0 +1,59 @@
+name: Process cover photos
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - covers.json
+      - scripts/process.py
+      - assets/logo.png
+
+permissions:
+  contents: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install "rembg[cpu]==2.0.86" requests pillow
+      - run: python scripts/process.py ${{ matrix.part }} 6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.part }}
+          path: |
+            originals/
+            cutout/
+            watermark/
+          retention-days: 7
+
+  collect:
+    needs: process
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+      - run: |
+          for d in originals cutout watermark; do mkdir -p $d; cp -n parts/*/$d/* $d/ 2>/dev/null || true; done
+          rm -rf parts
+          pip install pillow
+          python scripts/sheets.py
+      - run: |
+          git config user.name "BioLabTek image bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add originals cutout watermark sheets
+          git commit -m "Processed cover photos" || echo "nothing to commit"
+          git push
