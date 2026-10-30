@@ -1,0 +1,23 @@
+name: Fetch Machinio photos
+on:
+  push:
+    branches: [machinio-photos]
+    paths: [urls.tsv]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download photos
+        run: python3 fetch.py
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add photos
+          [ -f failed.txt ] && git add failed.txt || true
+          git commit -m "Add Machinio listing photos" || echo "nothing to commit"
+          git push
